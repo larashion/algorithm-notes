@@ -1,6 +1,3 @@
-双向宽搜有问题，别学
-
-回头把Pair全替换了。
 #### [1162. As Far from Land as Possible](https://leetcode.com/problems/as-far-from-land-as-possible/)
 
 ```java
@@ -54,17 +51,17 @@ class Solution {
 class Solution {
     public int[][] colorBorder(int[][] grid, int row, int col, int color) {
         int m = grid.length, n = grid[0].length;
-        boolean[][] isBoarder = new boolean[m][n];
-        bfs(grid, row, col, m, n, isBoarder);
+        boolean[][] isBorder = new boolean[m][n];
+        bfs(grid, row, col, m, n, isBorder);
         for (int i = 0; i < m; i++) {
             for (int j = 0; j < n; j++) {
-                if (isBoarder[i][j]) grid[i][j] = color;
+                if (isBorder[i][j]) grid[i][j] = color;
             }
         }
         return grid;
     }
 
-    private void bfs(int[][] grid, int row, int col, int m, int n, boolean[][] isBoarder) {
+    private void bfs(int[][] grid, int row, int col, int m, int n, boolean[][] isBorder) {
         // mark as visited before enqueue
         boolean[][] visited = new boolean[m][n];
         visited[row][col] = true;
@@ -75,7 +72,7 @@ class Solution {
             int[] polled = queue.poll();
             int x = polled[0], y = polled[1];
             // the border is on the boundary of the grid or adjacent to squares of a different color.
-            isBoarder[x][y] = x == 0 || x == m - 1 || y == 0 || y == n - 1
+            isBorder[x][y] = x == 0 || x == m - 1 || y == 0 || y == n - 1
                     || grid[x][y] != grid[x - 1][y]
                     || grid[x][y] != grid[x + 1][y]
                     || grid[x][y] != grid[x][y - 1]
@@ -93,6 +90,7 @@ class Solution {
     }
 }
 ```
+
 #### [797. All Paths From Source to Target](https://leetcode.com/problems/all-paths-from-source-to-target/)
 
 java
@@ -152,7 +150,6 @@ func allPathsSourceTarget(graph [][]int) [][]int {
 
 #### [1129. Shortest Path with Alternating Colors](https://leetcode.com/problems/shortest-path-with-alternating-colors/)
 
-
 ```java
 class Solution {
     private static final int red = 1;
@@ -203,7 +200,6 @@ class Solution {
 }
 ```
 
-
 #### [1311. Get Watched Videos by Your Friends](https://leetcode.com/problems/get-watched-videos-by-your-friends/)
 
 ```java
@@ -211,7 +207,6 @@ class Solution {
     public List<String> watchedVideosByFriends(List<List<String>> watchedVideos, int[][] friends, int id, int level) {
         Queue<Integer> queue = BFS(friends, id, level);
         HashMap<String, Integer> freq = new HashMap<>();
-        System.out.println(queue);
         for (Integer f : queue) {
             for (String video : watchedVideos.get(f)) {
                 freq.put(video, freq.getOrDefault(video, 0) + 1);
@@ -253,7 +248,6 @@ class Solution {
 }
 ```
 
-
 #### 399. Evaluate Division
 
 java
@@ -274,21 +268,22 @@ class Solution {
         if (!graph.containsKey(start)) {
             return -1;
         }
-        ArrayDeque<Pair<String, Double>> queue = new ArrayDeque<>();
-        queue.add(new Pair<>(start, 1.0));
+        record Node(String u, double weight) {}
+        ArrayDeque<Node> queue = new ArrayDeque<>();
+        queue.add(new Node(start, 1.0));
         HashSet<String> visited = new HashSet<>();
         visited.add(start);
         while (!queue.isEmpty()) {
-            var poll = queue.poll();
-            String u = poll.getKey();
-            Double weight = poll.getValue();
+            Node poll = queue.poll();
+            String u = poll.u;
+            double weight = poll.weight;
             if (u.equals(end)) {
                 return weight;
             }
             for (String v : graph.get(u).keySet()) {
                 if (visited.contains(v)) continue;
                 visited.add(v);
-                queue.offer(new Pair<>(v, graph.get(u).get(v) * weight));
+                queue.offer(new Node(v, graph.get(u).get(v) * weight));
             }
         }
         return -1;
@@ -451,7 +446,6 @@ class Solution {
 }
 ```
 
-
 #### 785. Is Graph Bipartite?
 
 验证二分图
@@ -523,7 +517,6 @@ func bfs(graph [][]int, colors []int, start int) bool {
 	return true
 }
 ```
-
 
 #### 102. Binary Tree Level Order Traversal
 
@@ -611,7 +604,7 @@ func zigzagLevelOrder(root *TreeNode) [][]int {
    }
    var res [][]int
    queue := []*TreeNode{root}
-   zizag := false
+   zigzag := false
    for len(queue) > 0 {
       var level []int
       for _, n := range queue {
@@ -624,11 +617,11 @@ func zigzagLevelOrder(root *TreeNode) [][]int {
             queue = append(queue, n.Right)
          }
       }
-      if zizag {
+      if zigzag {
          reverse(level)
       }
       res = append(res, level)
-      zizag = !zizag
+      zigzag = !zigzag
    }
    return res
 }
@@ -679,7 +672,6 @@ class Solution {
     }
 }
 ```
-
 
 go
 
@@ -754,21 +746,17 @@ func connect(root *Node) *Node {
 go
 
 ```go
-import (
-	"github.com/emirpasic/gods/sets/hashset"
-)
-
 type path struct {
 	word string
 	step int
 }
 
 func ladderLength(begin string, end string, wordList []string) int {
-	set := hashset.New()
+	set := make(map[string]bool)
 	for _, word := range wordList {
-		set.Add(word)
+		set[word] = true
 	}
-	if !set.Contains(end) {
+	if !set[end] {
 		return 0
 	}
 	for queue := []*path{{begin, 1}}; len(queue) > 0; queue = queue[1:] {
@@ -780,8 +768,8 @@ func ladderLength(begin string, end string, wordList []string) int {
 			var j byte
 			for j = 'a'; j < 'z'+1; j++ {
 				modified := word[:i] + string(j) + word[i+1:]
-				if set.Contains(modified) {
-					set.Remove(modified)
+				if set[modified] {
+					delete(set, modified)
 					queue = append(queue, &path{modified, step + 1})
 				}
 			}
@@ -800,11 +788,12 @@ class Solution {
         if (!wordDict.contains(endWord)) {
             return 0;
         }
-        Queue<Pair<String, Integer>> queue = new ArrayDeque<>(List.of(new Pair<>(beginWord, 1)));
+        record Node(String word, int step) {}
+        Queue<Node> queue = new ArrayDeque<>(List.of(new Node(beginWord, 1)));
         while (!queue.isEmpty()) {
-            Pair<String, Integer> head = queue.poll();
-            String curr = head.getKey();
-            int step = head.getValue();
+            Node head = queue.poll();
+            String curr = head.word;
+            int step = head.step;
             if (curr.equals(endWord)) {
                 return step;
             }
@@ -815,7 +804,7 @@ class Solution {
                     String modified = new String(byteArr);
                     if (wordDict.contains(modified)) {
                         wordDict.remove(modified);
-                        queue.offer(new Pair<>(modified, step + 1));
+                        queue.offer(new Node(modified, step + 1));
                     }
                 }
             }
@@ -1164,21 +1153,17 @@ https://leetcode.com/problems/minimum-genetic-mutation/discuss/189662/Python-BFS
 go
 
 ```go
-import (
-	"github.com/emirpasic/gods/sets/hashset"
-)
-
 type path struct {
 	gene   string
 	mutate int
 }
 
 func minMutation(start string, end string, bank []string) int {
-	bankSet := hashset.New()
+	bankSet := make(map[string]bool)
 	for _, v := range bank {
-		bankSet.Add(v)
+		bankSet[v] = true
 	}
-	if !bankSet.Contains(end) {
+	if !bankSet[end] {
 		return -1
 	}
 	agct := "AGCT"
@@ -1191,8 +1176,8 @@ func minMutation(start string, end string, bank []string) int {
 		for i := range curr.gene {
 			for j := range agct {
 				modified := curr.gene[:i] + string(agct[j]) + curr.gene[i+1:]
-				if bankSet.Contains(modified) {
-					bankSet.Remove(modified)
+				if bankSet[modified] {
+					delete(bankSet, modified)
 					queue = append(queue, &path{modified, curr.mutate + 1})
 				}
 			}
@@ -1233,12 +1218,13 @@ class Solution {
             return -1;
         }
 
-        Queue<Pair<String, Integer>> queue = new ArrayDeque<>(List.of(new Pair<>(start, 0)));
+        record Node(String gene, int step) {}
+        Queue<Node> queue = new ArrayDeque<>(List.of(new Node(start, 0)));
         char[] AGCT = "AGCT".toCharArray();
         while (!queue.isEmpty()) {
-            Pair<String, Integer> head = queue.poll();
-            int step = head.getValue();
-            String curr = head.getKey();
+            Node head = queue.poll();
+            int step = head.step;
+            String curr = head.gene;
             if (curr.equals(end)) {
                 return step;
             }
@@ -1249,7 +1235,7 @@ class Solution {
                     String modified = new String(chars);
                     if (bankSet.contains(modified)) {
                         bankSet.remove(modified);
-                        queue.offer(new Pair<>(modified, step + 1));
+                        queue.offer(new Node(modified, step + 1));
                     }
                 }
             }
@@ -1323,6 +1309,7 @@ func islandPerimeter(grid [][]int) int {
 	return res
 }
 ```
+
 #### 513. Find Bottom Left Tree Value
 
 ```go
@@ -1613,29 +1600,26 @@ func max(a, b int) int {
 
 java
 
-用的Pair类来自javafx.util包
-
-https://javabook.bloomu.edu/setupjavafx.html
-
 ```java
 class Solution {
     public int widthOfBinaryTree(TreeNode root) {
         int res = 0;
-        ArrayDeque<Pair<TreeNode, Integer>> queue = new ArrayDeque<>();
-        queue.offer(new Pair<>(root, 1));
+        record Node(TreeNode node, int idx) {}
+        ArrayDeque<Node> queue = new ArrayDeque<>();
+        queue.offer(new Node(root, 1));
         while (!queue.isEmpty()) {
-            Integer right = queue.peekLast().getValue();
-            Integer left = queue.peekFirst().getValue();
+            int right = queue.peekLast().idx;
+            int left = queue.peekFirst().idx;
             res = Math.max(res, right - left + 1);
             for (int i = queue.size() - 1; i >= 0; i--) {
-                var pair = queue.poll();
-                int idx = pair.getValue();
-                TreeNode node = pair.getKey();
+                Node poll = queue.poll();
+                int idx = poll.idx;
+                TreeNode node = poll.node;
                 if (node.left != null) {
-                    queue.offer(new Pair<>(node.left, idx * 2));
+                    queue.offer(new Node(node.left, idx * 2));
                 }
                 if (node.right != null) {
-                    queue.offer(new Pair<>(node.right, idx * 2 + 1));
+                    queue.offer(new Node(node.right, idx * 2 + 1));
                 }
             }
         }
@@ -1897,7 +1881,6 @@ func networkDelayTime(times [][]int, n int, k int) int {
 }
 ```
 
-
 #### 773. Sliding Puzzle
 
 java
@@ -1907,15 +1890,16 @@ class Solution {
     public int slidingPuzzle(int[][] board) {
         List<Integer> target = List.of(1, 2, 3, 4, 5, 0);
         List<Integer> start = Arrays.stream(board).flatMapToInt(Arrays::stream).boxed().toList();
-        ArrayDeque<Pair<List<Integer>, Integer>> queue = new ArrayDeque<>();
-        queue.offer(new Pair<>(start, 0));
+        record Node(List<Integer> curr, int step) {}
+        ArrayDeque<Node> queue = new ArrayDeque<>();
+        queue.offer(new Node(start, 0));
         HashSet<List<Integer>> visited = new HashSet<>();
         visited.add(start);
         int[][] dirs = {{1, 3}, {0, 2, 4}, {1, 5}, {0, 4}, {1, 3, 5}, {2, 4}};
         while (!queue.isEmpty()) {
-            Pair<List<Integer>, Integer> poll = queue.poll();
-            List<Integer> curr = poll.getKey();
-            Integer step = poll.getValue();
+            Node poll = queue.poll();
+            List<Integer> curr = poll.curr;
+            int step = poll.step;
             if (curr.equals(target)) return step;
             int zero = curr.indexOf(0);
             for (int i : dirs[zero]) {
@@ -1923,7 +1907,7 @@ class Solution {
                 Collections.swap(next, i, zero);
                 if (visited.contains(next)) continue;
                 visited.add(next);
-                queue.add(new Pair<>(next, step + 1));
+                queue.add(new Node(next, step + 1));
             }
         }
         return -1;
@@ -2168,24 +2152,22 @@ class Solution {
 go
 
 ```go
-import "github.com/emirpasic/gods/sets/hashset"
-
 func canVisitAllRooms(rooms [][]int) bool {
-	seen := hashset.New(0)
+	seen := map[int]bool{0: true}
 	for queue := []int{0}; len(queue) > 0; queue = queue[1:] {
 		head := queue[0]
 		for _, next := range rooms[head] {
-			if seen.Contains(next) {
+			if seen[next] {
 				continue
 			}
 			queue = append(queue, next)
-			seen.Add(next)
-			if len(rooms) == seen.Size() {
+			seen[next] = true
+			if len(rooms) == len(seen) {
 				return true
 			}
 		}
 	}
-	return false
+	return len(rooms) == len(seen)
 }
 ```
 
