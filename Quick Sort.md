@@ -1,30 +1,26 @@
-## 双路快排 (Dual-Pivot / Two-way Partitioning)
+## 双路快排 (Two-way Partitioning)
 
 **核心思想：均匀分布**
-双路快排将切分元素均匀分布在两个区间 `<= pivot` 和 `>= pivot`。
+双路快排将切分元素均匀分布在两个区间 `<= pivot` 和 `>= pivot`。这不仅能处理重复元素，还能在包含大量重复元素的情况下（如 `[2, 2, ..., 2]`）避免退化为 $O(N^2)$。
 
-**核心思想：处理重复元素**
-虽然两个相等值的交换看似没有意义，但这种策略可以让等于 `pivot` 的元素平均分布在数组的头尾，从而避免在包含大量重复元素的情况下（如 `[2, 2, ..., 2]`）退化为 $O(N^2)$。
+**实现细节：Move-to-Head 策略**
+本文件统一采用将 `pivot` 交换至区间头部 `l` 的策略：
+1. **随机选取**：在当前区间 `[l, r)` 中随机选取一个索引作为 `pivot`。
+2. **交换至头部**：将 `pivot` 交换至索引 `l`，暂存 `pivotVal`。
+3. **双向扫描**：左指针 `i` 从 `l+1` 开始，右指针 `j` 从 `r-1` 开始，向中间靠拢并交换违规元素。
+4. **归位**：扫描结束后，将头部索引 `l` 处的 `pivot` 与 `j` 处元素交换。此时 `j` 为 `pivot` 的最终位置。
+5. **递归**：下一轮递归区间分别为 `[l, j)` 和 `[j+1, r)`，**完全跳过已经归位的索引 `j`**。
 
-**实现细节：为什么 `partition` 返回指针 r？**
-因为使用的是 Hoare 分区方案（或其变体），最终 `l` 和 `r` 会交错或重合。划分点通常选为第一个区间的最后一个元素（即 `r`），保证 `[start, r]` 为左区间，`[r+1, end]` 为右区间。
-
-**实现细节：关键点**
-`pivot` 不能选右边界（最后一个元素）。从语义来说，将数组分成 `<=` 和 `>` 两部分。如果数组已经有序且 `pivot` 选了最大值（即最后一个元素），那么右区间将为空，左区间包含所有元素（且没变小），会导致无限递归（死循环）。
-
-**实现细节：指针移动逻辑**
-`while (nums[l] < pivotVal) l++;`
-`while (nums[r] > pivotVal) r--;`
-遇到不符合条件的就停下来，**遇到等于 `pivot` 的也停下来交换**。这正是为了“均匀分布”重复元素。指针 r 右侧绝对大于 pivot。
+这种策略允许等于 `pivot` 的元素平均分布在数组两侧。
 
 **优化**
-小数组（如长度 < 60）使用插入排序（Insertion Sort），因为小数组时插入排序常数更小且缓存友好。
+小数组（如长度 < 47）使用插入排序（Insertion Sort），因为小数组时插入排序常数更小且缓存友好。
 
 ---
 
 #### 215. Kth Largest Element in an Array
 
-递归折半查找，时间复杂度 $O(N)$。注意：Hoare 分区返回的索引 `p` 将数组分为 `[0, p]` 和 `[p+1, len-1]`，并不保证 `nums[p]` 处于最终有序位置，因此递归时区间不能跳过 `p`。
+递归折半查找，时间复杂度 $O(N)$。注意：采用 Move-to-Head 策略的分区函数返回的索引 `j` 保证 **`nums[j]` 已处于最终有序位置**，因此递归时可以根据 `j` 与 `k` 的关系直接剪枝或缩小区间。
 
 Go
 
@@ -34,38 +30,47 @@ import "math/rand"
 func findKthLargest(nums []int, k int) int {
     n := len(nums)
     // 第 k 大 即 第 n - k 小 (0-based index)
-    return quickSelect(nums, n-k)
+    return quickSelect(nums, 0, n, n-k)
 }
 
-func quickSelect(nums []int, k int) int {
-    if len(nums) == 1 {
-        return nums[0]
+func quickSelect(nums []int, l, r, k int) int {
+    if r-l <= 1 {
+        return nums[l]
     }
     
-    // partition 返回左区间的最后一个索引 p
-    p := partition(nums)
+    // partition 返回 pivot 的最终位置 j
+    j := partition(nums, l, r)
     
-    if k <= p {
-        return quickSelect(nums[:p+1], k)
-    } else {
-        return quickSelect(nums[p+1:], k-(p+1))
+    if k == j {
+        return nums[j]
     }
+    if k < j {
+        return quickSelect(nums, l, j, k)
+    }
+    return quickSelect(nums, j+1, r, k)
 }
 
-func partition(nums []int) int {
-    l, r := 0, len(nums)-1
-    // 随机选取 pivot，范围 [0, r-1]，避开 r 以防无限递归
-    pivotIdx := rand.Intn(r) 
-    pivotVal := nums[pivotIdx]
+func partition(nums []int, l, r int) int {
+    // 随机选取 pivot 并交换到头部
+    pivotIdx := l + rand.Intn(r-l)
+    // Move to Head
+    nums[l], nums[pivotIdx] = nums[pivotIdx], nums[l]
+    pivotVal := nums[l]
     
+    i, j := l+1, r-1
     for {
-        for nums[l] < pivotVal { l++ }
-        for nums[r] > pivotVal { r-- }
-        if l >= r { return r }
-        nums[l], nums[r] = nums[r], nums[l]
-        l++
-        r--
+        // 向右找到第一个 >= pivotVal 的元素
+        for i <= j && nums[i] < pivotVal { i++ }
+        // 向左找到第一个 <= pivotVal 的元素
+        for i <= j && nums[j] > pivotVal { j-- }
+        if i >= j { break }
+        nums[i], nums[j] = nums[j], nums[i]
+        i++
+        j--
     }
+    // 将 pivot 放到最终位置 j
+    nums[l], nums[j] = nums[j], nums[l]
+    return j
 }
 ```
 
@@ -80,34 +85,45 @@ class Solution:
         n = len(nums)
         # 第 k 大即第 n-k 小（0-based index）
         target = n - k
-        return self.quick_select(nums, 0, n - 1, target)
+        return self.quick_select(nums, 0, n, target)
 
-    def quick_select(self, nums: List[int], l: int, r: int, k: int) -> int:
-        if l >= r:
+    def quick_select(self, nums: List[int], l: int, r: int, target: int) -> int:
+        if r - l <= 1:
             return nums[l]
         
-        pivot = self.partition(nums, l, r)
+        # partition 返回 pivot 的最终位置 j
+        j = self.partition(nums, l, r)
         
-        if k <= pivot:
-            return self.quick_select(nums, l, pivot, k)
-        else:
-            return self.quick_select(nums, pivot + 1, r, k)
+        if target == j:
+            return nums[j]
+        if target < j:
+            return self.quick_select(nums, l, j, target)
+        return self.quick_select(nums, j + 1, r, target)
 
     def partition(self, nums: List[int], l: int, r: int) -> int:
-        # 随机选取 pivot，范围 [l, r-1]，避开 r 以防无限递归
+        # 随机选取 pivot 并交换到头部
         pivot_idx = random.randint(l, r - 1)
-        pivot_val = nums[pivot_idx]
+        # Move to Head
+        nums[l], nums[pivot_idx] = nums[pivot_idx], nums[l]
+        pivot_val = nums[l]
         
+        i, j = l + 1, r - 1
         while True:
-            while nums[l] < pivot_val:
-                l += 1
-            while nums[r] > pivot_val:
-                r -= 1
-            if l >= r:
-                return r
-            nums[l], nums[r] = nums[r], nums[l]
-            l += 1
-            r -= 1
+            # 向右找到第一个 >= pivotVal 的元素
+            while i <= j and nums[i] < pivot_val:
+                i += 1
+            # 向左找到第一个 <= pivotVal 的元素
+            while i <= j and nums[j] > pivot_val:
+                j -= 1
+            if i >= j:
+                break
+            nums[i], nums[j] = nums[j], nums[i]
+            i += 1
+            j -= 1
+            
+        # 将 pivot 放到最终位置 j
+        nums[l], nums[j] = nums[j], nums[l]
+        return j
 ```
 
 Rust
@@ -118,38 +134,47 @@ impl Solution {
         let n = nums.len();
         // 第 k 大 即 第 n - k 小的元素 (0-based)
         let target = n - k as usize;
-        Self::quick_select(&mut nums, target)
+        Self::quick_select(&mut nums, 0, n, target)
     }
 
-    fn quick_select(arr: &mut [i32], k: usize) -> i32 {
-        if arr.len() == 1 {
-            return arr[0];
+    fn quick_select(arr: &mut [i32], l: usize, r: usize, k: usize) -> i32 {
+        if r - l <= 1 {
+            return arr[l];
         }
-        let pivot = Self::partition(arr);
+        let j = Self::partition(arr, l, r);
         
-        // Hoare partition: [0..=pivot] <= val, [pivot+1..] >= val
-        if k <= pivot {
-            Self::quick_select(&mut arr[0..=pivot], k)
-        } else {
-            Self::quick_select(&mut arr[pivot+1..], k - (pivot + 1))
-        }
+        if k == j {
+            return arr[j];
+        } 
+        if k < j {
+            return Self::quick_select(arr, l, j, k);
+        } 
+        Self::quick_select(arr, j + 1, r, k)
     }
 
-    fn partition(arr: &mut [i32]) -> usize {
-        let mut l = 0;
-        let mut r = arr.len() - 1;
-        // 随机选择 pivot，范围 [l, r)，即排除最后一个元素以防无限递归
+    fn partition(arr: &mut [i32], l: usize, r: usize) -> usize {
+        // 随机选取 pivot 并交换到头部
         let pivot_index = rand::random_range(l..r); 
-        let pivot_value = arr[pivot_index];
+        // Move to Head
+        arr.swap(l, pivot_index);
+        let pivot_value = arr[l];
+        
+        let mut i = l + 1;
+        let mut j = r - 1;
+        
         loop {
-            while arr[l] < pivot_value { l += 1; }
-            while arr[r] > pivot_value { r -= 1; }
-            if l >= r { break; }
-            arr.swap(l, r);
-            l += 1;
-            r -= 1;
+            // 向右找到第一个 >= pivotVal 的元素
+            while i <= j && arr[i] < pivot_value { i += 1; }
+            // 向左找到第一个 <= pivotVal 的元素
+            while i <= j && arr[j] > pivot_value { j -= 1; }
+            if i >= j { break; }
+            arr.swap(i, j);
+            i += 1;
+            j -= 1;
         }
-        r
+        // 将 pivot 放到最终位置 j
+        arr.swap(l, j);
+        j
     }
 }
 ```
@@ -163,42 +188,50 @@ public class Solution {
     public int findKthLargest(int[] nums, int k) {
         int n = nums.length;
         // 第 k 大即索引为 n-k 的元素（排序后）
-        return quickSelect(nums, 0, n - 1, n - k);
+        return quickSelect(nums, 0, n, n - k);
     }
 
     private int quickSelect(int[] nums, int l, int r, int k) {
-        if (l >= r) return nums[l];
-        int pivot = partition(nums, l, r);
+        if (r - l <= 1) return nums[l];
         
-        // Hoare partition 分割为 [l, pivot] 和 [pivot+1, r]
-        if (k <= pivot) {
-            return quickSelect(nums, l, pivot, k);
-        } else {
-            return quickSelect(nums, pivot + 1, r, k);
-        }
-    }
-
-    private int partition(int[] nums, int l, int r) {
-        // 随机选取 pivot，范围 [l, r-1]，避开 r 以防无限递归
-        int pivot = l + ThreadLocalRandom.current().nextInt(r - l);
-        int pivotVal = nums[pivot];
+        int j = partition(nums, l, r);
+        
+        if (k == j) {
+            return nums[j];
+        } 
+        if (k < j) {
+            return quickSelect(nums, l, j, k);
+        } 
+        return quickSelect(nums, j + 1, r, k);
+    }    private int partition(int[] nums, int l, int r) {
+        // 随机选取 pivot 并交换到头部
+        int pivotIdx = l + ThreadLocalRandom.current().nextInt(r - l);
+        // Move to Head
+        swap(nums, l, pivotIdx);
+        int pivotVal = nums[l];
+        
+        int i = l + 1, j = r - 1;
         while (true) {
-            while (nums[l] < pivotVal) l++;
-            while (nums[r] > pivotVal) r--;
-            if (l >= r) {
+            // 向右找到第一个 >= pivotVal 的元素
+            while (i <= j && nums[i] < pivotVal) i++;
+            // 向左找到第一个 <= pivotVal 的元素
+            while (i <= j && nums[j] > pivotVal) j--;
+            if (i >= j) {
                 break;
             }
-            swap(nums, l, r);
-            l++;
-            r--;
+            swap(nums, i, j);
+            i++;
+            j--;
         }
-        return r;
+        // 将 pivot 放到最终位置 j
+        swap(nums, l, j);
+        return j;
     }
 
-    private void swap(int[] nums, int l, int r) {
-        int tmp = nums[l];
-        nums[l] = nums[r];
-        nums[r] = tmp;
+    private void swap(int[] nums, int i, int j) {
+        int temp = nums[i];
+        nums[i] = nums[j];
+        nums[j] = temp;
     }
 }
 ```
@@ -217,25 +250,26 @@ func sortArray(nums []int) []int {
 	if n < 2 {
 		return nums
 	}
-	quickSort(nums)
+	quickSort(nums, 0, n)
 	return nums
 }
 
-func quickSort(nums []int) {
-	if len(nums) < 60 {
-		insertionSort(nums)
+func quickSort(nums []int, l, r int) {
+	if r-l < 47 {
+		insertionSort(nums, l, r)
 		return
 	}
-	p := partition(nums)
-	quickSort(nums[:p+1])
-	quickSort(nums[p+1:])
+	// j 是 pivot 的最终位置
+	j := partition(nums, l, r)
+	quickSort(nums, l, j)
+	quickSort(nums, j+1, r)
 }
 
-func insertionSort(nums []int) {
-	for i := 1; i < len(nums); i++ {
+func insertionSort(nums []int, l, r int) {
+	for i := l + 1; i < r; i++ {
 		key := nums[i]
 		j := i
-		for j > 0 && nums[j-1] > key {
+		for j > l && nums[j-1] > key {
 			nums[j] = nums[j-1]
 			j--
 		}
@@ -243,26 +277,31 @@ func insertionSort(nums []int) {
 	}
 }
 
-func partition(nums []int) int {
-	l, r := 0, len(nums)-1
-	// 随机选取 pivot，范围 [0, r-1]，避开 r 以防无限递归
-	pivotIdx := rand.Intn(r)
-	pivotVal := nums[pivotIdx]
+func partition(nums []int, l, r int) int {
+	// 随机选取 pivot 并交换到头部
+	pivotIdx := l + rand.Intn(r-l)
+	// Move to Head
+	nums[l], nums[pivotIdx] = nums[pivotIdx], nums[l]
+	pivotVal := nums[l]
 
+	i, j := l+1, r-1
 	for {
-		for nums[l] < pivotVal {
-			l++
+		for i <= j && nums[i] < pivotVal {
+			i++
 		}
-		for nums[r] > pivotVal {
-			r--
+		for i <= j && nums[j] > pivotVal {
+			j--
 		}
-		if l >= r {
-			return r
+		if i >= j {
+			break
 		}
-		nums[l], nums[r] = nums[r], nums[l]
-		l++
-		r--
+		nums[i], nums[j] = nums[j], nums[i]
+		i++
+		j--
 	}
+	// 将 pivot 放到最终位置 j
+	nums[l], nums[j] = nums[j], nums[l]
+	return j
 }
 ```
 
@@ -277,20 +316,21 @@ class Solution:
         n = len(nums)
         if n < 2:
             return nums
-        self.quick_sort(nums, 0, n - 1)
+        self.quick_sort(nums, 0, n)
         return nums
 
     def quick_sort(self, nums: List[int], l: int, r: int):
-        if r - l < 60:
+        if r - l < 47:
             self.insertion_sort(nums, l, r)
             return
         
-        pivot = self.partition(nums, l, r)
-        self.quick_sort(nums, l, pivot)
-        self.quick_sort(nums, pivot + 1, r)
+        # j 是 pivot 的最终位置
+        j = self.partition(nums, l, r)
+        self.quick_sort(nums, l, j)
+        self.quick_sort(nums, j + 1, r)
 
     def insertion_sort(self, nums: List[int], l: int, r: int):
-        for i in range(l + 1, r + 1):
+        for i in range(l + 1, r):
             key = nums[i]
             j = i
             while j > l and nums[j - 1] > key:
@@ -299,21 +339,28 @@ class Solution:
             nums[j] = key
 
     def partition(self, nums: List[int], l: int, r: int) -> int:
-        # 随机选取 pivot，范围 [l, r-1]，避开 r 以防无限递归
+        # 随机选取 pivot 并交换到头部
         pivot_idx = random.randint(l, r - 1)
-        pivot_val = nums[pivot_idx]
+        # Move to Head
+        nums[l], nums[pivot_idx] = nums[pivot_idx], nums[l]
+        pivot_val = nums[l]
         
+        i, j = l + 1, r - 1
         while True:
-            while nums[l] < pivot_val:
-                l += 1
-            while nums[r] > pivot_val:
-                r -= 1
-            if l >= r:
-                return r
+            while i <= j and nums[i] < pivot_val:
+                i += 1
+            while i <= j and nums[j] > pivot_val:
+                j -= 1
+            if i >= j:
+                break
             
-            nums[l], nums[r] = nums[r], nums[l]
-            l += 1
-            r -= 1
+            nums[i], nums[j] = nums[j], nums[i]
+            i += 1
+            j -= 1
+        
+        # 将 pivot 放到最终位置 j
+        nums[l], nums[j] = nums[j], nums[l]
+        return j
 ```
 
 Rust
@@ -330,14 +377,17 @@ impl Solution {
     }
 
     fn quick_sort_recursion(arr: &mut [i32]) {
-        if arr.len() < 60 {
+        let len = arr.len();
+        if len < 47 {
             Self::insertion_sort(arr);
             return;
         }
-        let pivot = Self::partition(arr);
-        let (left, right) = arr.split_at_mut(pivot + 1);
+        let j = Self::partition(arr);
+        // j 是 pivot 的最终位置 (相对索引)
+        // arr[0..j] 是左半边, arr[j] 是 pivot, arr[j+1..] 是右半边
+        let (left, right) = arr.split_at_mut(j);
         Self::quick_sort_recursion(left);
-        Self::quick_sort_recursion(right);
+        Self::quick_sort_recursion(&mut right[1..]);
     }
 
     fn insertion_sort(arr: &mut [i32]) {
@@ -353,27 +403,33 @@ impl Solution {
     }
 
     fn partition(arr: &mut [i32]) -> usize {
-        let mut l = 0;
-        let mut r = arr.len() - 1;
-        // 随机选择 pivot，范围 [l, r)，即排除最后一个元素以防无限递归
-        let pivot_index = rand::random_range(l..r); 
-        let pivot_value = arr[pivot_index];
+        let len = arr.len();
+        // 随机选取 pivot 并交换到头部
+        let pivot_index = rand::random_range(0..len); 
+        // Move to Head
+        arr.swap(0, pivot_index);
+        let pivot_value = arr[0];
+        
+        let mut i = 1;
+        let mut j = len - 1;
         
         loop {
-            while arr[l] < pivot_value {
-                l += 1;
+            while i <= j && arr[i] < pivot_value {
+                i += 1;
             }
-            while arr[r] > pivot_value {
-                r -= 1;
+            while i <= j && arr[j] > pivot_value {
+                j -= 1;
             }
-            if l >= r {
+            if i >= j {
                 break;
             }
-            arr.swap(l, r); 
-            l += 1;
-            r -= 1;
+            arr.swap(i, j); 
+            i += 1;
+            j -= 1;
         }
-        r
+        // 将 pivot 放到最终位置 j
+        arr.swap(0, j);
+        j
     }
 }
 ```
@@ -388,12 +444,12 @@ public class Solution {
         if (nums == null) return null;
         int n = nums.length;
         if (n < 2) return nums;
-        quickSort(nums, 0, n - 1);
+        quickSort(nums, 0, n);
         return nums;
     }
 
     private void insertionSort(int[] nums, int l, int r) {
-        for (int i = l + 1; i < r + 1; i++) {
+        for (int i = l + 1; i < r; i++) {
             int key = nums[i], j = i;
             while (j > l && nums[j - 1] > key) {
                 nums[j] = nums[j - 1];
@@ -404,30 +460,117 @@ public class Solution {
     }
 
     private void quickSort(int[] nums, int l, int r) {
-        if (r - l < 60) {
+        if (r - l < 47) {
             insertionSort(nums, l, r);
             return;
         }
-        int pivot = partition(nums, l, r);
-        quickSort(nums, l, pivot);
-        quickSort(nums, pivot + 1, r);
+        int j = partition(nums, l, r);
+        quickSort(nums, l, j);
+        quickSort(nums, j + 1, r);
     }
 
     private int partition(int[] nums, int l, int r) {
-        // 随机选取 pivot，范围 [l, r-1]，避开 r 以防无限递归
-        int pivot = l + ThreadLocalRandom.current().nextInt(r - l);
-        int pivotVal = nums[pivot];
+        // 随机选取 pivot 并交换到头部
+        int pivotIdx = l + ThreadLocalRandom.current().nextInt(r - l);
+        // Move to Head
+        swap(nums, l, pivotIdx);
+        int pivotVal = nums[l];
+        
+        int i = l + 1, j = r - 1;
         while (true) {
-            while (nums[l] < pivotVal) l++;
-            while (nums[r] > pivotVal) r--;
-            if (l >= r) {
+            while (i <= j && nums[i] < pivotVal) i++;
+            while (i <= j && nums[j] > pivotVal) j--;
+            if (i >= j) {
                 break;
             }
-            swap(nums, l, r);
-            l++;
-            r--;
+            swap(nums, i, j);
+            i++;
+            j--;
         }
-        return r;
+        // 将 pivot 放到最终位置 j
+        swap(nums, l, j);
+        return j;
+    }
+
+    private void swap(int[] nums, int i, int j) {
+        int temp = nums[i];
+        nums[i] = nums[j];
+        nums[j] = temp;
+    }
+}
+```
+java示例
+```java
+/**
+ * Single-threaded QuickSort implementation using Dual-Way Partitioning.
+ * <p>
+ * Design choices:
+ * 1. Left-closed, Right-open intervals for standard compliance.
+ * 2. Randomized Pivot placed at Head (l) to guarantee partition invariant.
+ * 3. Dual-Way scanning to handle duplicate elements efficiently (avoiding O(N^2) on all-equal arrays).
+ */
+class QuickSort implements Sorter {
+
+    private static final int INSERTION_THRESHOLD = 47;
+    private final Random random = new Random();
+
+    @Override
+    public void sort(int[] nums) {
+        if (nums == null || nums.length < 2) return;
+        quickSort(nums, 0, nums.length);
+    }
+
+    private void quickSort(int[] nums, int l, int r) {
+        if (r - l <= INSERTION_THRESHOLD) {
+            insertionSort(nums, l, r);
+            return;
+        }
+        // last index in the left half
+        int j = partition(nums, l, r);
+
+        quickSort(nums, l, j);
+        quickSort(nums, j + 1, r);
+    }
+
+    private int partition(int[] nums, int l, int r) {
+        // Random Selection: Avoid worst-case on sorted arrays
+        int pivotIdx = l + random.nextInt(r - l);
+        // Pivot Value
+        int pivot = nums[pivotIdx];
+        // Move to Head
+        swap(nums, l, pivotIdx);
+        // l is the pivot
+        int i = l + 1;
+        int j = r - 1;
+        while (true) {
+            while (i <= j && nums[i] < pivot) {
+                i++;
+            }
+            while (i <= j && nums[j] > pivot) {
+                j--;
+            }
+            if (i >= j) {
+                break;
+            }
+            swap(nums, i, j);
+            i++;
+            j--;
+        }
+        // j stopped at a value <= pivot.
+        swap(nums, l, j);
+        return j;
+    }
+
+    private void insertionSort(int[] nums, int l, int r) {
+        for (int i = l + 1; i < r; i++) {
+            int key = nums[i];
+            int j = i;
+            while (j > l && nums[j - 1] > key) {
+                nums[j] = nums[j - 1];
+                j--;
+            }
+            nums[j] = key;
+        }
     }
 
     private void swap(int[] nums, int i, int j) {
