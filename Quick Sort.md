@@ -4,7 +4,7 @@
 双路快排将切分元素均匀分布在两个区间 `<= pivot` 和 `>= pivot`。这不仅能处理重复元素，还能在包含大量重复元素的情况下（如 `[2, 2, ..., 2]`）避免退化为 $O(N^2)$。
 
 **实现细节：Move-to-Head 策略**
-本文件统一采用将 `pivot` 交换至区间头部 `l` 的策略：
+统一采用将 `pivot` 交换至区间头部 `l` 的策略：
 1. **随机选取**：在当前区间 `[l, r)` 中随机选取一个索引作为 `pivot`。
 2. **交换至头部**：将 `pivot` 交换至索引 `l`，暂存 `pivotVal`。
 3. **双向扫描**：左指针 `i` 从 `l+1` 开始，右指针 `j` 从 `r-1` 开始，向中间靠拢并交换违规元素。
@@ -16,7 +16,7 @@
 将`pivot vakue`交换到首尾，将pivot元素排除出递归调用，切实地减少递归的问题规模，避免死循环。
 
 **优化**
-小数组（如长度 < 47）使用插入排序（Insertion Sort），因为小数组时插入排序常数更小且缓存友好。
+小数组（如长度 < threshold）使用插入排序（Insertion Sort），因为小数组时插入排序常数更小且缓存友好。
 
 ---
 
@@ -256,8 +256,10 @@ func sortArray(nums []int) []int {
 	return nums
 }
 
+const threshold = 47
+
 func quickSort(nums []int, l, r int) {
-	if r-l < 47 {
+	if r-l < threshold {
 		insertionSort(nums, l, r)
 		return
 	}
@@ -314,6 +316,8 @@ import random
 from typing import List
 
 class Solution:
+    THRESHOLD = 47
+
     def sortArray(self, nums: List[int]) -> List[int]:
         n = len(nums)
         if n < 2:
@@ -322,7 +326,7 @@ class Solution:
         return nums
 
     def quick_sort(self, nums: List[int], l: int, r: int):
-        if r - l < 47:
+        if r - l < self.THRESHOLD:
             self.insertion_sort(nums, l, r)
             return
         
@@ -369,6 +373,8 @@ Rust
 
 ```rust
 impl Solution {
+    const THRESHOLD: usize = 47;
+
     pub fn sort_array(mut nums: Vec<i32>) -> Vec<i32> {
         let n = nums.len();
         if n < 2 {
@@ -380,7 +386,7 @@ impl Solution {
 
     fn quick_sort_recursion(arr: &mut [i32]) {
         let len = arr.len();
-        if len < 47 {
+        if len < Self::THRESHOLD {
             Self::insertion_sort(arr);
             return;
         }
@@ -442,6 +448,8 @@ Java
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Solution {
+    private static final int THRESHOLD = 47;
+
     public int[] sortArray(int[] nums) {
         if (nums == null) return null;
         int n = nums.length;
@@ -462,7 +470,7 @@ public class Solution {
     }
 
     private void quickSort(int[] nums, int l, int r) {
-        if (r - l < 47) {
+        if (r - l < THRESHOLD) {
             insertionSort(nums, l, r);
             return;
         }
